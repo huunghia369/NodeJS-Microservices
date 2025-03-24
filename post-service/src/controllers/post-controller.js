@@ -1,5 +1,6 @@
 const Post = require("../models/Post");
 const logger = require("../utils/logger");
+const { publishEvent } = require("../utils/rabbitmq");
 const { validateCreatePost } = require("../utils/validation");
 
 async function invalidatePostCache(req, input) {
@@ -33,6 +34,13 @@ const createPost = async (req, res) => {
 
     await newlyCreatedPost.save();
 
+    await publishEvent("post.created", {
+      postId: newlyCreatedPost._id.toString(),
+      userId: newlyCreatedPost.user.toString(),
+      content: newlyCreatedPost.content,
+      createdAt: newlyCreatedPost.createdAt,
+    });
+
     await invalidatePostCache(req, newlyCreatedPost._id.toString());
     logger.info("Post created successfully", newlyCreatedPost);
     res.status(201).json({
@@ -40,7 +48,7 @@ const createPost = async (req, res) => {
       message: "Post created successfully",
     });
   } catch (e) {
-    logger.error("Error creating post", e);
+    logger.error("Error creating post", error);
     res.status(500).json({
       success: false,
       message: "Error creating post",
@@ -136,6 +144,13 @@ const deletePost = async (req, res) => {
         success: false,
       });
     }
+
+    //publish post delete method ->
+    await publishEvent("post.deleted", {
+      postId: post._id.toString(),
+      userId: req.user.userId,
+      mediaIds: post.mediaIds,
+    });
 
     await invalidatePostCache(req, req.params.id);
     res.json({

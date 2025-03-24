@@ -7,8 +7,8 @@ const { rateLimit } = require("express-rate-limit");
 const { RedisStore } = require("rate-limit-redis");
 const logger = require("./utils/logger");
 const proxy = require("express-http-proxy");
+const errorHandler = require("./middleware/errorhandler");
 const { validateToken } = require("./middleware/authMiddleware");
-const errorHandler = require("./middleware/errorHandler");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -112,13 +112,35 @@ app.use(
     },
     userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
       logger.info(
-        `Response received from media service: ${proxyRes.statusCode}`
+        `Response received from media service: ${proxyRes.statusCode}`,
       );
 
       return proxyResData;
     },
     parseReqBody: false,
-  })
+  }),
+);
+
+//setting up proxy for our search service
+app.use(
+  "/v1/search",
+  validateToken,
+  proxy(process.env.SEARCH_SERVICE_URL, {
+    ...proxyOptions,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      proxyReqOpts.headers["Content-Type"] = "application/json";
+      proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
+
+      return proxyReqOpts;
+    },
+    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
+      logger.info(
+        `Response received from Search service: ${proxyRes.statusCode}`,
+      );
+
+      return proxyResData;
+    },
+  }),
 );
 
 app.use(errorHandler);
@@ -126,13 +148,16 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   logger.info(`API Gateway is running on port ${PORT}`);
   logger.info(
-    `Identity service is running on port ${process.env.IDENTITY_SERVICE_URL}`
+    `Identity service is running on port ${process.env.IDENTITY_SERVICE_URL}`,
   );
   logger.info(
-    `Post service is running on port ${process.env.POST_SERVICE_URL}`
+    `Post service is running on port ${process.env.POST_SERVICE_URL}`,
   );
   logger.info(
     `Media service is running on port ${process.env.MEDIA_SERVICE_URL}`,
+  );
+  logger.info(
+    `Search service is running on port ${process.env.SEARCH_SERVICE_URL}`,
   );
   logger.info(`Redis Url ${process.env.REDIS_URL}`);
 });

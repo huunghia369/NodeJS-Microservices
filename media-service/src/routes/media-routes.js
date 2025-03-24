@@ -31,9 +31,9 @@ router.post(
           stack: err.stack,
         });
       } else if (err) {
-        logger.error("Unknown error occured while uploading:", err);
+        logger.error("Unknown error occurred while uploading:", err);
         return res.status(500).json({
-          message: "Unknown error occured while uploading:",
+          message: "Unknown error occurred while uploading:",
           error: err.message,
           stack: err.stack,
         });
